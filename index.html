@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fundraising Strategy | EMBA Workshop</title>
+    
+    <!-- React & ReactDOM (Core) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (JSX Compiler) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS (Styling) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        emerald: {
+                            400: '#34d399', 500: '#10b981', 600: '#059669',
+                            800: '#065f46', 900: '#064e3b', 950: '#022c22',
+                        },
+                        slate: {
+                            850: '#1e293b', 900: '#0f172a', 950: '#020617',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        serif: ['Times New Roman', 'Times', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* --- 翻轉卡片核心 CSS (支援點擊翻轉) --- */
+        .flip-card {
+            background-color: transparent;
+            perspective: 1000px;
+            cursor: pointer;
+        }
+
+        .flip-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        /* 當添加 .flipped class 時翻轉 */
+        .flip-card.flipped .flip-card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .flip-card-front, .flip-card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            border-radius: 0.25rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+
+        .flip-card-back {
+            transform: rotateY(180deg);
+        }
+
+        /* 動畫 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- ICONS (SVG Components) ---
+        const IconWrapper = ({ children, className, size = 24, onClick }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} onClick={onClick}>{children}</svg>
+        );
+        const MenuIcon = (p) => <IconWrapper {...p}><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></IconWrapper>;
+        const XIcon = (p) => <IconWrapper {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconWrapper>;
+        const GlobeIcon = (p) => <IconWrapper {...p}><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></IconWrapper>;
+        const MoonIcon = (p) => <IconWrapper {...p}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></IconWrapper>;
+        const SunIcon = (p) => <IconWrapper {...p}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></IconWrapper>;
+        const ChevronRightIcon = (p) => <IconWrapper {...p}><path d="m9 18 6-6-6-6"/></IconWrapper>;
+        const ChevronDownIcon = (p) => <IconWrapper {...p}><path d="m6 9 6 6 6-6"/></IconWrapper>;
+        const ChevronUpIcon = (p) => <IconWrapper {...p}><path d="m18 15-6-6-6 6"/></IconWrapper>;
+        const BriefcaseIcon = (p) => <IconWrapper {...p}><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></IconWrapper>;
+        const TrendingUpIcon = (p) => <IconWrapper {...p}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></IconWrapper>;
+        const CalculatorIcon = (p) => <IconWrapper {...p}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="18" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></IconWrapper>;
+        const AwardIcon = (p) => <IconWrapper {...p}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></IconWrapper>;
+
+        // --- DATA & TRANSLATIONS ---
+        const TEXTS = {
+            header: {
+                title: { en: "Fundraising Strategy", zh: "創業募資實戰策略" },
+                subtitle: { en: "EMBA Strategic Workshop", zh: "EMBA 高階管理工作坊" }
+            },
+            nav: {
+                mindset: { en: "Mindset Shift", zh: "思維轉型" },
+                stages: { en: "Funding Stages", zh: "募資階段" },
+                investors: { en: "Investor Types", zh: "投資人類別" },
+                valuation: { en: "Valuation Tool", zh: "估值模型" },
+                deck: { en: "Pitch Deck 10", zh: "簡報架構" },
+                pitch: { en: "Elevator Pitch", zh: "電梯簡報實戰" },
+                terms: { en: "Term Sheet", zh: "投資條款" }
+            },
+            footer: {
+                version: "v2.5.0 (2026.01)",
+                copyright: "© 2026 Fundraising Workshop Strategy.",
+                editor: { en: "Creative Editor: Prof. Shihmin Lo", zh: "創意編輯：Prof. Shihmin Lo" }
+            }
+        };
+
+        const PITCH_FIELDS = {
+            name: { en: "Company Name", zh: "公司名稱", placeholder: { en: "e.g. NextGen Tech", zh: "例如：下世代科技" } },
+            customer: { en: "Target Customer", zh: "目標客戶", placeholder: { en: "e.g. SME Owners", zh: "例如：中小企業主" } },
+            problem: { en: "Customer Pain Point", zh: "客戶痛點", placeholder: { en: "e.g. High Cost", zh: "例如：成本過高" } },
+            solution: { en: "Your Solution", zh: "解決方案", placeholder: { en: "e.g. AI Automation", zh: "例如：AI 自動化" } },
+            traction: { en: "Key Traction", zh: "目前成績", placeholder: { en: "e.g. 10k users", zh: "例如：一萬名用戶" } },
+            ask: { en: "Funding Ask", zh: "募資需求", placeholder: { en: "e.g. $2M USD", zh: "例如：200萬美金" } }
+        };
+
+        const CONTENT = {
+            mindset: {
+                title: { en: "SME vs. Startup Logic", zh: "中小企業 vs. 新創思維" },
+                desc: { en: "Shift from Profit-driven to Valuation-driven.", zh: "從「利潤導向」轉向「市值導向」。" },
+                cards: [
+                    {
+                        icon: BriefcaseIcon,
+                        title: { en: "SME (Business)", zh: "傳統生意 (SME)" },
+                        list: {
+                            en: ["Profit Maximization", "Linear Growth", "100% Control", "Bank Loans", "Dividend Focused"],
+                            zh: ["追求利潤極大化", "線性成長", "100% 控制權", "銀行借貸為主", "重視分紅"]
+                        },
+                        style: "border-emerald-600"
+                    },
+                    {
+                        icon: TrendingUpIcon,
+                        title: { en: "Startup (Scale)", zh: "創業思維 (Startup)" },
+                        list: {
+                            en: ["Valuation Maximization", "Exponential Growth", "Shared Equity", "VC Funding", "Exit Strategy"],
+                            zh: ["追求市值極大化", "指數型成長", "股權稀釋共享", "創投融資", "重視出場 (Exit)"]
+                        },
+                        style: "border-emerald-400"
+                    }
+                ]
+            },
+            stages: {
+                title: { en: "Funding Lifecycle", zh: "企業募資生命週期" },
+                desc: { en: "Understand the milestones for each round.", zh: "理解每一輪募資的里程碑與目標。" },
+                items: [
+                    { 
+                        stage: { en: "Seed Round", zh: "種子輪 (Seed)" }, 
+                        goal: { en: "Idea Validation & MVP", zh: "驗證點子 & 最小可行性產品" },
+                        detail: { en: "Prove the problem exists and you can solve it. Usually funded by FFF or Angels.", zh: "證明痛點存在且你有能力解決。資金通常來自3F或天使。" }
+                    },
+                    { 
+                        stage: { en: "Series A", zh: "A 輪 (Series A)" }, 
+                        goal: { en: "Product-Market Fit & Traction", zh: "產品市場媒合 (PMF) & 營運數據" },
+                        detail: { en: "You have a working product and paying users. Now you need money to optimize.", zh: "產品已上線且有付費與留存。需要資金優化產品與團隊。" }
+                    },
+                    { 
+                        stage: { en: "Series B", zh: "B 輪 (Series B)" }, 
+                        goal: { en: "Scaling & Expansion", zh: "規模化 & 市場擴張" },
+                        detail: { en: "The business model is proven. Pour fuel on the fire to capture market share.", zh: "商業模式已驗證。注入資金快速搶佔市佔率與擴張地區。" }
+                    },
+                    { 
+                        stage: { en: "IPO / M&A", zh: "上市 / 併購 (Exit)" }, 
+                        goal: { en: "Liquidity & Public Trading", zh: "流動性 & 公開交易" },
+                        detail: { en: "The exit event for early investors. Provides liquidity and capital for massive growth.", zh: "早期投資人的退場機制。為公司提供更充裕的資本與知名度。" }
+                    }
+                ]
+            },
+            investors: {
+                title: { en: "Investor Landscape", zh: "投資人光譜" },
+                desc: { en: "Who fits your current stage?", zh: "誰適合你現在的階段？" },
+                items: [
+                    {
+                        type: { en: "FFF", zh: "3F (親友)" },
+                        desc: { en: "Family, Friends, and Fools. They invest in YOU, not the business.", zh: "家人、朋友、傻瓜。他們投的是「你這個人」，不是商業模式。" }
+                    },
+                    {
+                        type: { en: "Angel Investors", zh: "天使投資人" },
+                        desc: { en: "High-net-worth individuals. Flexible, fast, but smaller checks.", zh: "高資產個人。決策快、條款彈性，但金額較小，通常看直覺。" }
+                    },
+                    {
+                        type: { en: "Venture Capital (VC)", zh: "創投基金" },
+                        desc: { en: "Institutional money. Requires high growth returns within 7-10 years.", zh: "機構法人資金。追求高成長回報，有基金年限壓力 (7-10年)。" }
+                    },
+                    {
+                        type: { en: "CVC", zh: "企業創投" },
+                        desc: { en: "Corporate VC. Strategic value + Financial return. Great for partnerships.", zh: "企業創投。追求「策略價值」+「財務回報」。適合尋求產業資源對接。" }
+                    }
+                ]
+            },
+            deck: {
+                title: { en: "The Pitch Deck Framework", zh: "募資簡報架構" },
+                desc: { en: "10 slides to tell a billion-dollar story.", zh: "用10張投影片講一個值錢的故事。" },
+                slides: [
+                    { title: { en: "1. The Hook", zh: "1. 一句話定義" }, content: { en: "Company Name + Value Proposition. Who are you in one sentence?", zh: "公司名稱 + 價值主張。用一句話定義你是誰。" } },
+                    { title: { en: "2. The Problem", zh: "2. 市場痛點" }, content: { en: "What is the pain? How much money/time is wasted?", zh: "客戶有多痛？浪費了多少時間或金錢？" } },
+                    { title: { en: "3. The Solution", zh: "3. 解決方案" }, content: { en: "How do you solve it? Focus on value, not specs.", zh: "你如何止痛？重點是帶來的「價值」，而非技術規格。" } },
+                    { title: { en: "4. Market Size", zh: "4. 市場規模" }, content: { en: "TAM > SAM > SOM. Is the ceiling high enough?", zh: "天花板有多高？能否複製到海外市場？" } },
+                    { title: { en: "5. Business Model", zh: "5. 商業模式" }, content: { en: "How do you make money? Subscription? Transaction?", zh: "怎麼賺錢？訂閱？抽成？展示精準的成本結構。" } },
+                    { title: { en: "6. The Moat", zh: "6. 競爭優勢" }, content: { en: "Why can't Google kill you? Patents? Network effects?", zh: "為什麼大公司打不死你？專利、數據壁壘或獨家通路？" } },
+                    { title: { en: "7. Traction", zh: "7. 營運實績" }, content: { en: "Revenue, Users, Growth Rate. Data speaks louder.", zh: "數據說話：營收、用戶數、成長率、知名客戶。" } },
+                    { title: { en: "8. Roadmap", zh: "8. 未來規劃" }, content: { en: "Milestones for the next 18 months.", zh: "拿到錢後，未來18個月要達成什麼具體里程碑？" } },
+                    { title: { en: "9. The Team", zh: "9. 團隊介紹" }, content: { en: "Why you? Domain expertise and execution power.", zh: "為什麼是你們？強調產業經驗與執行力。" } },
+                    { title: { en: "10. The Ask", zh: "10. 募資計畫" }, content: { en: "How much? Equity? Use of funds?", zh: "要多少錢？釋出多少股份？錢要花在哪裡？" } },
+                ]
+            },
+            terms: {
+                title: { en: "Term Sheet Decoder", zh: "投資條款解密" },
+                items: [
+                    { term: { en: "Valuation (Pre/Post)", zh: "估值 (投前/投後)" }, desc: { en: "Pre-money is what you are worth now. Post-money = Pre + Investment.", zh: "投前是現在的身價。投後 = 投前 + 投資金額。" } },
+                    { term: { en: "Liquidation Preference", zh: "清算優先權" }, desc: { en: "Who gets paid first if the company is sold or liquidated? Usually investors get 1x back first.", zh: "公司倒閉或被賣掉時，誰先拿錢？通常投資人要求優先拿回 1倍本金。" } },
+                    { term: { en: "Vesting Schedule", zh: "股權兌現期" }, desc: { en: "Founders earn their stock over time (usually 4 years). Keeps you committed.", zh: "創辦人的股票不是馬上拿到，而是分期（通常4年）給付，綁定創辦人留任。" } },
+                    { term: { en: "Board Seats", zh: "董事會席次" }, desc: { en: "Control rights. Investors often want a seat to monitor performance.", zh: "控制權的象徵。投資人通常要求一席董事來監督公司運作。" } },
+                    { term: { en: "Anti-dilution", zh: "反稀釋條款" }, desc: { en: "Protects investors if you raise money later at a lower valuation (Down Round).", zh: "若未來估值降低融資 (Down Round)，保護早期投資人股權不被過度稀釋。" } },
+                ]
+            }
+        };
+
+        // --- SUB COMPONENTS ---
+
+        // Mobile Optimized Flip Card (Click to Flip)
+        const FlipCard = ({ frontTitle, frontSubtitle, backContent, theme }) => {
+            const [isFlipped, setIsFlipped] = useState(false);
+
+            return (
+                <div 
+                    className={`flip-card h-64 w-full ${isFlipped ? 'flipped' : ''}`} 
+                    onClick={() => setIsFlipped(!isFlipped)}
+                >
+                    <div className="flip-card-inner shadow-xl rounded-sm">
+                        {/* Front */}
+                        <div className={`flip-card-front border-t-4 ${theme === 'dark' ? 'bg-slate-800 border-emerald-500 text-white' : 'bg-white border-emerald-600 text-slate-800'}`}>
+                            <h3 className="text-xl font-bold font-serif mb-2">{frontTitle}</h3>
+                            <div className="w-12 h-1 bg-emerald-500 mb-4 rounded-full"></div>
+                            <p className="opacity-80 text-sm font-sans uppercase tracking-widest">{frontSubtitle}</p>
+                            <div className="mt-6 text-xs opacity-50 flex items-center gap-1">
+                                {isFlipped ? 'Tap to Flip Back' : 'Tap to Flip'} <ChevronRightIcon size={12}/>
+                            </div>
+                        </div>
+                        {/* Back */}
+                        <div className={`flip-card-back border-b-4 ${theme === 'dark' ? 'bg-emerald-900 border-emerald-400 text-white' : 'bg-emerald-50 border-emerald-600 text-slate-800'}`}>
+                            <p className="text-lg font-medium leading-relaxed">{backContent}</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AccordionItem = ({ title, children, isOpen, onClick, theme }) => {
+            return (
+                <div className={`border-b ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`}>
+                    <button 
+                        className={`w-full py-5 px-4 flex justify-between items-center text-left transition-colors ${theme === 'dark' ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}
+                        onClick={onClick}
+                    >
+                        <span className={`font-serif font-bold text-lg ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-800'}`}>{title}</span>
+                        {isOpen ? <ChevronUpIcon size={20} /> : <ChevronDownIcon size={20} />}
+                    </button>
+                    <div 
+                        className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-48 opacity-100' : 'max-h-0 opacity-0'}`}
+                    >
+                        <div className={`p-4 pt-0 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+                            {children}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const SectionHeader = ({ title, subtitle, theme }) => (
+            <div className="mb-12 border-l-4 border-emerald-500 pl-6">
+                <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-2">{title}</h2>
+                <p className={`text-lg md:text-xl font-light ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{subtitle}</p>
+            </div>
+        );
+
+        // --- MAIN APP ---
+        function App() {
+            const [lang, setLang] = useState('en');
+            const [theme, setTheme] = useState('dark');
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+            const [activeSection, setActiveSection] = useState('mindset');
+            const [activeAccordion, setActiveAccordion] = useState(null);
+
+            // Inputs
+            const [investment, setInvestment] = useState('');
+            const [equity, setEquity] = useState('');
+            const [valuation, setValuation] = useState(null);
+            
+            // Pitch
+            const [pitchData, setPitchData] = useState({ name: '', customer: '', problem: '', solution: '', traction: '', ask: '' });
+            const [pitchResult, setPitchResult] = useState('');
+
+            // Theme helpers
+            const bgMain = theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50';
+            const textMain = theme === 'dark' ? 'text-slate-100' : 'text-slate-900';
+            const bgCard = theme === 'dark' ? 'bg-slate-800' : 'bg-white';
+            const accentText = theme === 'dark' ? 'text-emerald-400' : 'text-emerald-700';
+
+            const toggleLang = () => setLang(l => l === 'en' ? 'zh' : 'en');
+            const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
+
+            const calculateVal = () => {
+                const i = Number(investment);
+                const e = Number(equity);
+                if(i && e) {
+                    const post = i / (e/100);
+                    setValuation({ pre: post - i, post });
+                }
+            };
+
+            const generatePitch = () => {
+                const t = lang === 'en' 
+                    ? `Hi, we are ${pitchData.name || '___'}. We help ${pitchData.customer || '___'} solve ${pitchData.problem || '___'} with our ${pitchData.solution || '___'}. We have achieved ${pitchData.traction || '___'} and are looking for ${pitchData.ask || '___'} to scale.`
+                    : `你好，我們是 ${pitchData.name || '___'}。我們協助 ${pitchData.customer || '___'} 解決 ${pitchData.problem || '___'} 的問題。我們的解決方案是 ${pitchData.solution || '___'}。目前成績為 ${pitchData.traction || '___'}，正尋求 ${pitchData.ask || '___'} 資金以擴大規模。`;
+                setPitchResult(t);
+            };
+
+            const navItems = Object.keys(TEXTS.nav).map(key => ({
+                id: key,
+                label: TEXTS.nav[key][lang]
+            }));
+
+            return (
+                <div className={`min-h-screen font-sans transition-colors duration-300 ${bgMain} ${textMain}`}>
+                    
+                    {/* Header */}
+                    <header className={`fixed w-full z-50 transition-all duration-300 border-b ${theme === 'dark' ? 'bg-slate-900/95 border-slate-700' : 'bg-white/95 border-slate-200'} backdrop-blur-sm`}>
+                        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setIsMenuOpen(true)} className="p-2 rounded hover:bg-emerald-500/10 transition">
+                                    <MenuIcon className={accentText} />
+                                </button>
+                                <div className="flex flex-col">
+                                    <h1 className="text-lg font-bold font-serif tracking-wide leading-none uppercase">{TEXTS.header.title[lang]}</h1>
+                                    <span className="text-xs opacity-60 tracking-widest uppercase mt-0.5 hidden sm:block">{TEXTS.header.subtitle[lang]}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={toggleLang} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-bold border transition ${theme === 'dark' ? 'border-slate-600 hover:bg-slate-800' : 'border-slate-300 hover:bg-slate-100'}`}>
+                                    <GlobeIcon size={14} /> {lang === 'en' ? 'ENG' : '繁中'}
+                                </button>
+                                <button onClick={toggleTheme} className={`p-2 rounded-full transition ${theme === 'dark' ? 'hover:bg-slate-800 text-yellow-400' : 'hover:bg-slate-100 text-slate-600'}`}>
+                                    {theme === 'dark' ? <MoonIcon size={18} /> : <SunIcon size={18} />}
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Hamburger Menu */}
+                    <div className={`fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm transition-opacity ${isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsMenuOpen(false)}>
+                        <div className={`absolute left-0 top-0 bottom-0 w-80 shadow-2xl transition-transform duration-300 ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} ${theme === 'dark' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`} onClick={e => e.stopPropagation()}>
+                            <div className="p-6 flex justify-between items-center border-b border-emerald-500/20">
+                                <h2 className="font-serif text-xl font-bold text-emerald-500">Workshop Menu</h2>
+                                <button onClick={() => setIsMenuOpen(false)}><XIcon /></button>
+                            </div>
+                            <nav className="p-6 space-y-2">
+                                {navItems.map(item => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => { setActiveSection(item.id); setIsMenuOpen(false); }}
+                                        className={`w-full text-left py-3 px-4 rounded transition-all ${activeSection === item.id ? 'bg-emerald-600 text-white font-bold pl-6 border-l-4 border-white' : 'hover:bg-emerald-500/10'}`}
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </nav>
+                            <div className="absolute bottom-10 left-6 text-xs opacity-40">
+                                Strategic Thinking for Leaders
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <main className="pt-24 pb-20 max-w-7xl mx-auto px-4 min-h-[85vh]">
+                        
+                        {/* MINDSET */}
+                        {activeSection === 'mindset' && (
+                            <div className="animate-fadeIn">
+                                <SectionHeader title={CONTENT.mindset.title[lang]} subtitle={CONTENT.mindset.desc[lang]} theme={theme} />
+                                <div className="grid md:grid-cols-2 gap-8">
+                                    {CONTENT.mindset.cards.map((card, idx) => {
+                                        const CardIcon = card.icon;
+                                        return (
+                                            <div key={idx} className={`p-8 rounded-sm border-t-4 shadow-lg ${bgCard} ${card.style}`}>
+                                                <div className="flex items-center gap-3 mb-6">
+                                                    <CardIcon size={32} className="text-emerald-500" />
+                                                    <h3 className="text-2xl font-serif font-bold">{card.title[lang]}</h3>
+                                                </div>
+                                                <ul className="space-y-3">
+                                                    {card.list[lang].map((item, i) => (
+                                                        <li key={i} className="flex items-start gap-2 opacity-90">
+                                                            <span className="text-emerald-500 font-bold">›</span> {item}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="mt-8 p-6 bg-emerald-900/20 border border-emerald-500/30 rounded-sm">
+                                    <h4 className="font-bold text-emerald-500 mb-2 uppercase tracking-wide text-sm">Consultant Insight</h4>
+                                    <p className="opacity-80 leading-relaxed italic">
+                                        {lang === 'en' ? "Don't just run a business; build an asset. Consider spinning off high-growth units to raise external capital while keeping the core business safe." : "不要只是經營生意，要建立資產。考慮將高成長的部門「內部創業」獨立分拆，既能對外募資，又能保障母公司核心業務的安全。"}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* STAGES (Flip Cards) */}
+                        {activeSection === 'stages' && (
+                            <div className="animate-fadeIn">
+                                <SectionHeader title={CONTENT.stages.title[lang]} subtitle={CONTENT.stages.desc[lang]} theme={theme} />
+                                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {CONTENT.stages.items.map((item, idx) => (
+                                        <FlipCard 
+                                            key={idx}
+                                            theme={theme}
+                                            frontTitle={item.stage[lang]}
+                                            frontSubtitle={item.goal[lang]}
+                                            backContent={item.detail[lang]}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* INVESTORS (Flip Cards) */}
+                        {activeSection === 'investors' && (
+                            <div className="animate-fadeIn">
+                                <SectionHeader title={CONTENT.investors.title[lang]} subtitle={CONTENT.investors.desc[lang]} theme={theme} />
+                                <div className="grid sm:grid-cols-2 gap-6">
+                                    {CONTENT.investors.items.map((item, idx) => (
+                                        <FlipCard 
+                                            key={idx}
+                                            theme={theme}
+                                            frontTitle={item.type[lang]}
+                                            frontSubtitle="Investor Profile"
+                                            backContent={item.desc[lang]}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VALUATION */}
+                        {activeSection === 'valuation' && (
+                            <div className="animate-fadeIn">
+                                <SectionHeader title={TEXTS.nav.valuation[lang]} subtitle={lang === 'en' ? "Calculate your Pre & Post Money Valuation" : "計算您的投前與投後估值"} theme={theme} />
+                                <div className="grid md:grid-cols-12 gap-8">
+                                    <div className={`md:col-span-5 p-8 rounded shadow-lg ${bgCard}`}>
+                                        <h3 className="font-serif font-bold text-xl mb-6 flex items-center gap-2">
+                                            <CalculatorIcon className="text-emerald-500"/> {lang === 'en' ? 'Inputs' : '輸入參數'}
+                                        </h3>
+                                        <div className="space-y-6">
+                                            <div>
+                                                <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-70">{lang === 'en' ? 'Investment Amount' : '投資金額 (萬)'}</label>
+                                                <input 
+                                                    type="number" 
+                                                    value={investment}
+                                                    onChange={e => setInvestment(e.target.value)}
+                                                    className={`w-full p-3 rounded border bg-transparent outline-none focus:ring-2 ring-emerald-500 transition ${theme === 'dark' ? 'border-slate-600' : 'border-slate-300'}`}
+                                                    placeholder="1000"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-70">{lang === 'en' ? 'Equity Offered (%)' : '釋出股份 (%)'}</label>
+                                                <input 
+                                                    type="number" 
+                                                    value={equity}
+                                                    onChange={e => setEquity(e.target.value)}
+                                                    className={`w-full p-3 rounded border bg-transparent outline-none focus:ring-2 ring-emerald-500 transition ${theme === 'dark' ? 'border-slate-600' : 'border-slate-300'}`}
+                                                    placeholder="20"
+                                                />
+                                            </div>
+                                            <button 
+                                                onClick={calculateVal}
+                                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase tracking-widest transition rounded-sm shadow-lg"
+                                            >
+                                                {lang === 'en' ? 'Calculate' : '開始計算'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="md:col-span-7 flex flex-col justify-center space-y-4">
+                                        <div className={`p-6 border-l-8 ${bgCard} ${valuation ? 'border-emerald-500' : 'border-slate-600'}`}>
+                                            <div className="text-sm uppercase tracking-widest opacity-60 mb-1">Post-Money Valuation</div>
+                                            <div className="text-4xl md:text-5xl font-serif font-bold text-emerald-500">
+                                                {valuation ? valuation.post.toLocaleString() : '---'}
+                                            </div>
+                                            <div className="text-xs opacity-50 mt-1">{lang === 'en' ? '= Investment / Equity %' : '= 投資額 / 釋出比例'}</div>
+                                        </div>
+                                        <div className={`p-6 border-l-8 ${bgCard} ${valuation ? 'border-blue-500' : 'border-slate-600'}`}>
+                                            <div className="text-sm uppercase tracking-widest opacity-60 mb-1">Pre-Money Valuation</div>
+                                            <div className="text-4xl md:text-5xl font-serif font-bold text-blue-500">
+                                                {valuation ? valuation.pre.toLocaleString() : '---'}
+                                            </div>
+                                            <div className="text-xs opacity-50 mt-1">{lang === 'en' ? '= Post-Money - Investment' : '= 投後估值 - 投資額'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PITCH DECK */}
+                        {activeSection === 'deck' && (
+                            <div className="animate-fadeIn">
+                                <SectionHeader title={CONTENT.deck.title[lang]} subtitle={CONTENT.deck.desc[lang]} theme={theme} />
+                                <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                                    {CONTENT.deck.slides.map((slide, idx) => (
+                                        <div key={idx} className="h-48">
+                                            <FlipCard 
+                                                theme={theme}
+                                                frontTitle={slide.title[lang]}
+                                                frontSubtitle="Tap for Details"
+                                                backContent={slide.content[lang]}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PITCH GENERATOR (Fixed Translations) */}
+                        {activeSection === 'pitch' && (
+                            <div className="animate-fadeIn">
+                                <SectionHeader title={TEXTS.nav.pitch[lang]} subtitle={lang === 'en' ? "Generate your script in 30 seconds" : "30秒生成您的講稿"} theme={theme} />
+                                <div className="grid lg:grid-cols-2 gap-12">
+                                    <div className="space-y-4">
+                                        {['name', 'customer', 'problem', 'solution', 'traction', 'ask'].map((field) => (
+                                            <div key={field}>
+                                                <label className="text-xs font-bold uppercase opacity-60 ml-1">
+                                                    {PITCH_FIELDS[field][lang]}
+                                                </label>
+                                                <input 
+                                                    value={pitchData[field]}
+                                                    onChange={e => setPitchData({...pitchData, [field]: e.target.value})}
+                                                    className={`w-full p-3 rounded border-b-2 bg-transparent focus:border-emerald-500 outline-none transition ${theme === 'dark' ? 'border-slate-700' : 'border-slate-300'}`}
+                                                    placeholder={PITCH_FIELDS[field].placeholder[lang]}
+                                                />
+                                            </div>
+                                        ))}
+                                        <button 
+                                            onClick={generatePitch}
+                                            className="w-full py-4 mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase tracking-widest transition rounded-sm shadow-lg"
+                                        >
+                                            {lang === 'en' ? 'Generate Script' : '生成講稿'}
+                                        </button>
+                                    </div>
+                                    <div className={`p-8 rounded shadow-2xl border ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                                        <h3 className="font-serif font-bold text-xl mb-6 text-emerald-500">{lang === 'en' ? 'Your Script' : '您的講稿'}</h3>
+                                        <p className="text-lg leading-loose font-medium opacity-90 whitespace-pre-line">
+                                            {pitchResult || (lang === 'en' ? "Fill in the fields on the left to generate..." : "請填寫左側欄位以生成內容...")}
+                                        </p>
+                                        {pitchResult && (
+                                            <button onClick={() => navigator.clipboard.writeText(pitchResult)} className="mt-6 flex items-center gap-2 text-sm opacity-60 hover:opacity-100 hover:text-emerald-500 transition">
+                                                <AwardIcon size={16} /> {lang === 'en' ? 'Copy to Clipboard' : '複製到剪貼簿'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TERM SHEET */}
+                        {activeSection === 'terms' && (
+                            <div className="animate-fadeIn">
+                                <SectionHeader title={CONTENT.terms.title[lang]} subtitle={lang === 'en' ? "Key clauses you must know" : "創辦人必知的關鍵條款"} theme={theme} />
+                                <div className={`max-w-3xl mx-auto rounded-lg overflow-hidden border ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                                    {CONTENT.terms.items.map((item, idx) => (
+                                        <AccordionItem 
+                                            key={idx}
+                                            title={item.term[lang]}
+                                            isOpen={activeAccordion === idx}
+                                            onClick={() => setActiveAccordion(activeAccordion === idx ? null : idx)}
+                                            theme={theme}
+                                        >
+                                            {item.desc[lang]}
+                                        </AccordionItem>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                    </main>
+
+                    {/* Footer with Correct Link */}
+                    <footer className={`border-t py-12 ${theme === 'dark' ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-300'}`}>
+                        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-xs tracking-widest uppercase opacity-50 relative z-50">
+                            <div>{TEXTS.footer.copyright}</div>
+                            <div className="flex gap-4">
+                                <span>{TEXTS.footer.version}</span>
+                                <a 
+                                    href="https://www.ibs.ncnu.edu.tw/index.php/faculty/tenured-professor/299-smlo" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="hover:text-emerald-500 transition border-b border-transparent hover:border-emerald-500 pb-0.5 cursor-pointer"
+                                    style={{ pointerEvents: 'auto' }}
+                                >
+                                    {TEXTS.footer.editor[lang]}
+                                </a>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
